@@ -3,21 +3,52 @@ function Read-KeyWithEscape {
         [string]$Prompt
     )
 
+    Write-Host $Prompt -NoNewline
+
+    $inputBuffer = ""
+
     while ($true) {
-        Write-Host $Prompt -NoNewline
         $key = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 
-        if ($key.VirtualKeyCode -eq 27) {   # Escape key
-            $confirmEscape = Read-Host "`nEscape pressed. Are you sure you want to exit? (Y/N)"
-            if ($confirmEscape -in @("Y", "y")) {
+        # Escape key
+        if ($key.VirtualKeyCode -eq 27) {
+            $confirm = Read-Host "`nEscape pressed. Exit script? (Y/N)"
+            if ($confirm -in @("Y","y")) {
                 Write-Host "Exiting script." -ForegroundColor Red
                 exit
-            } else {
-                Write-Host "Continuing..." -ForegroundColor Yellow
-                continue
             }
+            Write-Host $Prompt -NoNewline
+            Write-Host $inputBuffer -NoNewline
+            continue
         }
 
-        return $key.Character
+        # Enter -> return full string
+        if ($key.VirtualKeyCode -eq 13) {
+            Write-Host ""
+            return $inputBuffer
+        }
+
+        # Backspace
+        if ($key.VirtualKeyCode -eq 8) {
+            if ($inputBuffer.Length -gt 0) {
+                $inputBuffer = $inputBuffer.Substring(0, $inputBuffer.Length - 1)
+                $host.UI.RawUI.CursorPosition = @{
+                    X = $host.UI.RawUI.CursorPosition.X - 1
+                    Y = $host.UI.RawUI.CursorPosition.Y
+                }
+                Write-Host " " -NoNewline
+                $host.UI.RawUI.CursorPosition = @{
+                    X = $host.UI.RawUI.CursorPosition.X - 1
+                    Y = $host.UI.RawUI.CursorPosition.Y
+                }
+            }
+            continue
+        }
+
+        # Normal characters
+        if ($key.Character) {
+            $inputBuffer += $key.Character
+            Write-Host $key.Character -NoNewline
+        }
     }
 }

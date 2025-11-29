@@ -60,7 +60,6 @@ if (-not (Test-Path $templatesRoot)) {
     exit
 }
 
-
 # -------------------------------
 # Function to choose folder
 # -------------------------------
@@ -77,10 +76,10 @@ function Choose-Folder {
     Write-Host "0. Enter custom path"
 
     while ($true) {
-        $choice = Read-Host "Enter number of your choice (Escape to quit)"
+        $choice = Read-KeyWithEscape "Enter number of your choice (Escape to quit): "
 
         if ($choice -eq "0") {
-            $customPath = Read-Host "Enter custom path (Escape to quit)"
+            $customPath = Read-KeyWithEscape "Enter custom path (Escape to quit): "
             if ([string]::IsNullOrWhiteSpace($customPath)) {
                 Write-Host "Invalid path. Try again." -ForegroundColor Yellow
                 continue
@@ -121,25 +120,61 @@ if (-not (Test-Path $selectedParent)) {
 }
 
 # -------------------------------
-# Step 3: Select or create subfolder
+# Step 3: Select or create subfolder / project folder
 # -------------------------------
-$subDirs = Get-ChildItem -Path $selectedParent -Directory | ForEach-Object { $_.Name }
+while ($true) {
+    $subDirs = Get-ChildItem -Path $selectedParent -Directory | ForEach-Object { $_.Name }
 
-$selectedSub = Choose-Folder -options $subDirs -promptMessage "Select a subfolder or enter a custom folder path:"
+    Write-Host "Select a subfolder or enter a new folder name (this will also be the project name):"
+    for ($i = 0; $i -lt $subDirs.Count; $i++) {
+        Write-Host "$($i+1). $($subDirs[$i])"
+    }
+    Write-Host "0. Enter new folder name"
 
-# Resolve final path
-$finalPath = Join-Path $selectedParent $selectedSub
+    $choice = Read-KeyWithEscape "Enter number of your choice (Escape to quit): "
 
-# Create subfolder if it doesn't exist
-if (-not (Test-Path $finalPath)) {
+    if ($choice -eq "0") {
+        $selectedSub = Read-KeyWithEscape "Enter new folder name (no spaces, Escape to quit): "
+
+        if ([string]::IsNullOrWhiteSpace($selectedSub)) {
+            Write-Host "Folder name cannot be empty." -ForegroundColor Yellow
+            continue
+        }
+        if ($selectedSub -match "\s") {
+            Write-Host "Folder name cannot contain spaces." -ForegroundColor Yellow
+            continue
+        }
+    }
+    elseif ([int]::TryParse($choice, [ref]$null) -and $choice -ge 1 -and $choice -le $subDirs.Count) {
+        $selectedSub = $subDirs[$choice - 1]
+    } else {
+        Write-Host "Invalid choice. Try again." -ForegroundColor Yellow
+        continue
+    }
+
+    # Resolve final path
+    $finalPath = Join-Path $selectedParent $selectedSub
+
+    # Check if folder already exists
+    if (Test-Path $finalPath) {
+        Write-Host "Folder already exists: $finalPath. Please choose a different name." -ForegroundColor Yellow
+        continue
+    }
+
+    # Create folder
     try {
         New-Item -ItemType Directory -Path $finalPath -Force | Out-Null
-        Write-Host "Created folder: $finalPath" -ForegroundColor Green
+        Write-Host "Created project folder: $finalPath" -ForegroundColor Green
+        break
     } catch {
-        Write-Host "Cannot create folder: $finalPath. Exiting." -ForegroundColor Red
-        exit
+        Write-Host "Cannot create folder: $finalPath. Try a different name." -ForegroundColor Red
     }
 }
+
+# Use folder name as project name
+$projectName = Split-Path $finalPath -Leaf
+Write-Host "Project Name set to: $projectName" -ForegroundColor Cyan
+
 
 # -------------------------------
 # Step 4: Final confirmation
@@ -148,7 +183,7 @@ Write-Host "`nYou have selected:" -ForegroundColor Cyan
 Write-Host "Parent: $selectedParent"
 Write-Host "Folder: $finalPath"
 
-$confirm = Read-Host "Press Y to commit selection and create Vite project, any other key to exit"
+$confirm = Read-KeyWithEscape "Press Y to commit selection and create Vite project, any other key to exit: "
 
 if ($confirm -notin @("Y","y")) {
     Write-Host "Exiting without creating project." -ForegroundColor Red
@@ -163,15 +198,14 @@ Write-Host "Creating Vite + React + TypeScript project in $finalPath..." -Foregr
 # Move to final path
 Set-Location $finalPath
 
-# Initialize project
-npm create vite@latest . -- --template react-ts
+# Initialize project inside the folder
+npx create-vite@latest . --template react-ts
 
 # Install dependencies
 npm install
 
 # Load VS Code extensions for React and TypeScript
 if (Test-Path $extensionsFile) {
-    # Read lines that are not blank and do not start with '#'
     $extensions = Get-Content $extensionsFile | Where-Object {
         ($_ -ne "") -and (-not $_.TrimStart().StartsWith("#"))
     }
@@ -180,7 +214,7 @@ if (Test-Path $extensionsFile) {
     $extensions = @()
 }
 
-# Install extensions if the are missing
+# Install extensions if missing
 Write-Host "`nInstalling VS Code extensions..." -ForegroundColor Cyan
 
 foreach ($ext in $extensions) {
@@ -197,7 +231,6 @@ Write-Host "✅ VS Code extension setup complete!"
 # -------------------------------
 # Step 6: Remove the demo files
 # -------------------------------
-# Remove initial demo files from vite and react js templates
 if (Test-Path $demoFilesFile) {
     $demoItems = Get-Content $demoFilesFile | Where-Object {
         ($_ -ne "") -and (-not $_.TrimStart().StartsWith("#"))
@@ -207,7 +240,6 @@ if (Test-Path $demoFilesFile) {
     $demoItems = @()
 }
 
-# Remove demo files/folders
 Write-Host "`nRemoving default demo files/folders..." -ForegroundColor Cyan
 
 foreach ($item in $demoItems) {
@@ -225,48 +257,34 @@ foreach ($item in $demoItems) {
 # -------------------------------
 Write-Host "`nCreating minimal project structure..." -ForegroundColor Cyan
 
-# Recursively get all .txt template files
 $templateFiles = Get-ChildItem -Path $templatesRoot -Recurse -File -Filter "*.txt"
 
 foreach ($template in $templateFiles) {
-    # Relative path of the template file from the DefaultStructure folder
     $relativePath = $template.FullName.Substring($templatesRoot.Length + 1)
-
-    # Remove the .txt suffix to get the final path in project
     $relativePathWithoutTxt = $relativePath -replace "\.txt$",""
-
-    # Full path in the project
     $destinationPath = Join-Path $finalPath $relativePathWithoutTxt
 
-    # Ensure the folder exists
     $destinationDir = Split-Path $destinationPath -Parent
     if (-not (Test-Path $destinationDir)) {
         New-Item -ItemType Directory -Path $destinationDir -Force | Out-Null
     }
 
-    # Copy content from template to project file
     Copy-Item -Path $template.FullName -Destination $destinationPath -Force
-
     Write-Host "✅ Created $destinationPath"
 }
-
 
 # -------------------------------
 # Step 8: Update index.html title
 # -------------------------------
 $indexHtmlPath = Join-Path $finalPath "index.html"
 
-# Vite default index.html is usually in the project root
 if (-not (Test-Path $indexHtmlPath)) {
-    # If not found, check public/index.html (Vite sometimes uses public/)
     $indexHtmlPath = Join-Path $finalPath "public\index.html"
 }
 
 if (Test-Path $indexHtmlPath) {
-    # Read current content
     $htmlContent = Get-Content $indexHtmlPath -Raw
 
-    # Replace <title>...</title> with GymFury
     if ($htmlContent -match "<title>.*?</title>") {
         $htmlContent = [regex]::Replace($htmlContent, "<title>.*?</title>", "<title>GymFury</title>")
         Set-Content -Path $indexHtmlPath -Value $htmlContent -Force
@@ -278,8 +296,6 @@ if (Test-Path $indexHtmlPath) {
     Write-Host "index.html not found. Cannot update <title>." -ForegroundColor Yellow
 }
 
-
 Write-Host "`n🎉 Minimal GymFury project setup complete!" -ForegroundColor Green
 Write-Host "➡ Location: $finalPath"
 Write-Host "➡ Run with: npm run dev"
-
