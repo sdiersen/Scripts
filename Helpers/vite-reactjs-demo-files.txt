@@ -1,0 +1,9 @@
+# Files/folders to remove from default Vite + React TypeScript project
+# Blank lines and lines starting with # are ignored
+
+src/App.tsx
+src/main.tsx
+src/index.css
+src/assets
+README.md
+

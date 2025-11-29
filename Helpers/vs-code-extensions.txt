@@ -1,0 +1,38 @@
+# -----------------------------
+# Formatting
+# -----------------------------
+# Prettier - automatic code formatting for JS, TS, CSS, JSON, etc.
+esbenp.prettier-vscode
+
+# -----------------------------
+# Linting
+# -----------------------------
+# ESLint - linting and code quality for JavaScript and TypeScript
+dbaeumer.vscode-eslint
+
+# -----------------------------
+# Debugging
+# -----------------------------
+# Debugger for Chrome - debug JS/TS in Chrome
+msjsdiag.debugger-for-chrome
+
+# Debugger for Edge - debug JS/TS in Microsoft Edge
+ms-vscode.vscode-edge-devtools
+
+# -----------------------------
+# Productivity & UI
+# -----------------------------
+# Material Icon Theme - custom icons for files/folders
+PKief.material-icon-theme
+
+# PowerShell support - syntax highlighting, debugging, IntelliSense
+ms-vscode.powershell
+
+# Docker integration - manage Docker containers, images, and compose
+ms-azuretools.vscode-docker
+
+# GitHub Pull Requests and Issues - manage PRs & issues inside VS Code
+GitHub.vscode-pull-request-github
+
+# React/JS/TSX Snippets - handy snippets for React development
+dsznajder.es7-react-js-snippets
