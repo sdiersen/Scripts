@@ -2,8 +2,11 @@
 # Blank lines and lines starting with # are ignored
 
 src/App.tsx
+src/App.css
 src/main.tsx
 src/index.css
 src/assets
+public/favicon.svg
+public/icons.svg
 README.md
 

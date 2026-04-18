@@ -61,9 +61,9 @@ if (-not (Test-Path $templatesRoot)) {
 }
 
 # -------------------------------
-# Function to choose folder
+# Function to select folder
 # -------------------------------
-function Choose-Folder {
+function Select-Folder {
     param (
         [string[]]$options,
         [string]$promptMessage
@@ -103,7 +103,7 @@ $parentDirs = @(
     $userDocuments
 )
 
-$selectedParent = Choose-Folder -options $parentDirs -promptMessage "Select a parent directory:"
+$selectedParent = Select-Folder -options $parentDirs -promptMessage "Select a parent directory:"
 
 # Resolve full path
 $selectedParent = [System.IO.Path]::GetFullPath($selectedParent)
@@ -157,7 +157,7 @@ while ($true) {
 
     # Check if folder already exists
     if (Test-Path $finalPath) {
-        Write-Host "Folder already exists: $finalPath. Please choose a different name." -ForegroundColor Yellow
+        Write-Host "Folder already exists: $finalPath. Please select a different name." -ForegroundColor Yellow
         continue
     }
 
@@ -199,10 +199,100 @@ Write-Host "Creating Vite + React + TypeScript project in $finalPath..." -Foregr
 Set-Location $finalPath
 
 # Initialize project inside the folder
-npx create-vite@latest . --template react-ts
+npx create-vite@latest . --template react-ts --no-interactive
 
-# Install dependencies
-npm install
+# -------------------------------
+# Step 6: Install additional packages
+# -------------------------------
+$packageJsonPath = Join-Path $finalPath "package.json"
+$packageJson = $null
+
+if (Test-Path $packageJsonPath) {
+    $packageJson = Get-Content $packageJsonPath -Raw | ConvertFrom-Json
+}
+
+function Get-PackageName {
+    param (
+        [string]$packageSpec
+    )
+
+    if ($packageSpec -match '^(?<name>@[^/]+/[^@]+|[^@]+)@') {
+        return $Matches.name
+    }
+
+    return $packageSpec
+}
+
+$additionalDependencies = @(
+    "axios@latest",
+    "@emotion/react@latest",
+    "@emotion/styled@latest",
+    "@hookform/resolvers@latest",
+    "@mui/icons-material@latest",
+    "@mui/material@latest",
+    "@mui/x-date-pickers@latest",
+    "@tanstack/react-query@latest",
+    "i18next@latest",
+    "luxon@latest",
+    "react-hook-form@latest",
+    "react-i18next@latest",
+    "react-router-dom@latest",
+    "zod@latest"
+)
+
+$additionalDevDependencies = @(
+    "@testing-library/jest-dom@latest",
+    "@testing-library/react@latest",
+    "@testing-library/user-event@latest",
+    "@types/luxon@latest",
+    "@vitest/coverage-v8@latest",
+    "jsdom@latest",
+    "vite-tsconfig-paths@latest",
+    "vitest@latest"
+)
+
+$targetDependencyPackages = @{}
+$targetDevDependencyPackages = @{}
+
+if ($null -ne $packageJson) {
+    foreach ($property in $packageJson.dependencies.PSObject.Properties) {
+        $targetDependencyPackages[$property.Name] = $true
+    }
+
+    foreach ($property in $packageJson.devDependencies.PSObject.Properties) {
+        $targetDevDependencyPackages[$property.Name] = $true
+    }
+}
+
+foreach ($packageSpec in $additionalDependencies) {
+    $targetDependencyPackages[(Get-PackageName $packageSpec)] = $true
+}
+
+foreach ($packageSpec in $additionalDevDependencies) {
+    $targetDevDependencyPackages[(Get-PackageName $packageSpec)] = $true
+}
+
+$targetDependencies = $targetDependencyPackages.Keys | Sort-Object
+$targetDevDependencies = $targetDevDependencyPackages.Keys | Sort-Object
+
+Write-Host "`nInstalling project packages with exact versions..." -ForegroundColor Cyan
+
+if ($targetDependencies.Count -gt 0) {
+    npm install --save-exact $targetDependencies
+}
+
+if ($targetDevDependencies.Count -gt 0) {
+    npm install -D --save-exact $targetDevDependencies
+}
+
+$codeCliPath = Join-Path $env:LOCALAPPDATA "Programs\Microsoft VS Code\bin\code.cmd"
+
+if (-not (Test-Path $codeCliPath)) {
+    $codeCliCommand = Get-Command code.cmd -ErrorAction SilentlyContinue
+    if ($null -ne $codeCliCommand) {
+        $codeCliPath = $codeCliCommand.Source
+    }
+}
 
 # Load VS Code extensions for React and TypeScript
 if (Test-Path $extensionsFile) {
@@ -217,19 +307,26 @@ if (Test-Path $extensionsFile) {
 # Install extensions if missing
 Write-Host "`nInstalling VS Code extensions..." -ForegroundColor Cyan
 
-foreach ($ext in $extensions) {
-    if (-not (code --list-extensions | Select-String "^$ext$")) {
-        code --install-extension $ext
-        Write-Host "Installed $ext"
-    } else {
-        Write-Host "$ext is already installed"
+if (-not (Test-Path $codeCliPath)) {
+    Write-Host "VS Code CLI not found. Skipping extension installation." -ForegroundColor Yellow
+} else {
+    $installedExtensions = & $codeCliPath --list-extensions
+
+    foreach ($ext in $extensions) {
+        if (-not ($installedExtensions | Select-String "^$ext$")) {
+            & $codeCliPath --install-extension $ext
+            Write-Host "Installed $ext"
+            $installedExtensions += $ext
+        } else {
+            Write-Host "$ext is already installed"
+        }
     }
 }
 
 Write-Host "✅ VS Code extension setup complete!"
 
 # -------------------------------
-# Step 6: Remove the demo files
+# Step 7: Remove the demo files
 # -------------------------------
 if (Test-Path $demoFilesFile) {
     $demoItems = Get-Content $demoFilesFile | Where-Object {
@@ -253,7 +350,7 @@ foreach ($item in $demoItems) {
 }
 
 # -------------------------------
-# Step 7: Populate project from templates
+# Step 8: Populate project from templates
 # -------------------------------
 Write-Host "`nCreating minimal project structure..." -ForegroundColor Cyan
 
@@ -274,7 +371,7 @@ foreach ($template in $templateFiles) {
 }
 
 # -------------------------------
-# Step 8: Update index.html title
+# Step 9: Update index.html title
 # -------------------------------
 $indexHtmlPath = Join-Path $finalPath "index.html"
 
